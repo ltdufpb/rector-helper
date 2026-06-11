@@ -26,6 +26,15 @@ final class ClassMapBuilder
         'libs',
         'model',
         'src',
+        // Pastas legadas fora do padrao classes/libs que concentravam a
+        // maior parte dos unresolved (ex: DBDate em std/, rotulo em
+        // dbforms/, FPDF em fpdf151/).
+        'std',
+        'interfaces',
+        'fpdf151',
+        'dbagata',
+        'dbforms',
+        'forms',
     ];
 
     private Parser $parser;
