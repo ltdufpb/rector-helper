@@ -9,11 +9,18 @@ namespace EduDeps\Resolver;
  *
  * - byName: nome curto -> lista de paths (pode haver homonimos em namespaces distintos)
  * - byFqcn: FQCN -> path unico
+ *
+ * O lookup por nome curto e case-insensitive como fallback, porque nomes
+ * de classe em PHP sao case-insensitive: "new services_json()" instancia
+ * a classe declarada como "Services_JSON". O match exato tem prioridade.
  */
 final class ClassMap
 {
     /** @var array<string, list<string>> */
     private array $byName;
+
+    /** @var array<string, list<string>> indice em minusculas para fallback */
+    private array $byNameLower;
 
     /** @var array<string, string> */
     private array $byFqcn;
@@ -26,6 +33,13 @@ final class ClassMap
     {
         $this->byName = $byName;
         $this->byFqcn = $byFqcn;
+        $this->byNameLower = [];
+        foreach ($byName as $name => $paths) {
+            $lower = strtolower($name);
+            foreach ($paths as $path) {
+                $this->byNameLower[$lower][] = $path;
+            }
+        }
     }
 
     /**
@@ -33,7 +47,11 @@ final class ClassMap
      */
     public function findByName(string $shortName): array
     {
-        return $this->byName[$shortName] ?? [];
+        $exact = $this->byName[$shortName] ?? [];
+        if ($exact !== []) {
+            return $exact;
+        }
+        return $this->byNameLower[strtolower($shortName)] ?? [];
     }
 
     public function findByFqcn(string $fqcn): ?string
