@@ -1,0 +1,22 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+$autoload = null;
+foreach ([__DIR__ . '/../vendor/autoload.php', __DIR__ . '/../../vendor/autoload.php'] as $candidate) {
+    if (file_exists($candidate)) {
+        $autoload = $candidate;
+        break;
+    }
+}
+
+if ($autoload === null) {
+    fwrite(STDERR, "edu-deps: vendor/autoload.php nao encontrado. Rode 'composer install' primeiro.\n");
+    exit(1);
+}
+
+require $autoload;
+
+$app = new EduDeps\Cli\Application();
+exit($app->run());

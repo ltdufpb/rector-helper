@@ -1,0 +1,34 @@
+{
+    "name": "tcc/edu-deps",
+    "description": "Resolvedor de dependencias de arquivos edu*.php do e-cidade para alimentar o Rector. TCC sobre migracao de PHP legado.",
+    "type": "project",
+    "license": "MIT",
+    "require": {
+        "php": ">=7.4",
+        "ext-mbstring": "*",
+        "ext-iconv": "*",
+        "nikic/php-parser": "^4.18",
+        "symfony/console": "^5.4",
+        "symfony/yaml": "^5.4"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^9.5"
+    },
+    "autoload": {
+        "psr-4": {
+            "EduDeps\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "EduDeps\\Tests\\": "tests/"
+        }
+    },
+    "bin": ["bin/edu-deps"],
+    "config": {
+        "sort-packages": true
+    },
+    "scripts": {
+        "test": "phpunit tests/unit"
+    }
+}

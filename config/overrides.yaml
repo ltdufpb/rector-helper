@@ -1,0 +1,15 @@
+# Overrides manuais para casos que a analise estatica nao resolve.
+#
+# Exemplos:
+#
+# classes:
+#   cl_classe_excecional: classes/db_classe_legado.php
+#
+# patterns:
+#   "edu1_relatorio*.php":
+#     extra:
+#       - libs/db_pdf.php
+#       - libs/jpgraph/jpgraph.php
+
+classes: {}
+patterns: {}
