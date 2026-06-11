@@ -64,6 +64,12 @@ final class DependencyVisitor extends NodeVisitorAbstract
             if (strpos($fqcn, '\\') === false && $this->isStdlibClass($fqcn)) {
                 return null;
             }
+            // Namespaces de bibliotecas vendor sao dependencias externas:
+            // existem em vendor/, mas nao sao codigo do projeto a refatorar
+            // (incluir vendor/ no escopo do Rector seria indesejavel).
+            if ($this->isVendorNamespace($fqcn)) {
+                return null;
+            }
             $this->useStatements[] = [
                 'line' => $node->getStartLine(),
                 'fqcn' => $fqcn,
@@ -138,6 +144,35 @@ final class DependencyVisitor extends NodeVisitorAbstract
             return true;
         }
         return PhpBuiltinClasses::isBuiltin($name);
+    }
+
+    private function isVendorNamespace(string $fqcn): bool
+    {
+        // Prefixos de pacotes Composer presentes no vendor/ do e-cidade e
+        // comuns em projetos PHP legados com camada Laravel/Zend.
+        $vendorPrefixes = [
+            'Illuminate\\',
+            'Symfony\\',
+            'Laravel\\',
+            'Carbon\\',
+            'Monolog\\',
+            'Psr\\',
+            'Doctrine\\',
+            'GuzzleHttp\\',
+            'PhpOffice\\',
+            'Zend\\',
+            'setasign\\',
+            'Ramsey\\',
+            'League\\',
+            'Faker\\',
+            'PHPUnit\\',
+        ];
+        foreach ($vendorPrefixes as $prefix) {
+            if (strncasecmp($fqcn, $prefix, strlen($prefix)) === 0) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private function extractLiteralString(Node $node): ?string

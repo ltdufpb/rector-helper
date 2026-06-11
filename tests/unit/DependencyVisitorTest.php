@@ -107,6 +107,22 @@ PHP;
         $this->assertSame('App\Domain\Helpers\StorageHelper', $uses[0]['fqcn']);
     }
 
+    public function test_skips_vendor_namespaces_in_use_statements(): void
+    {
+        $source = <<<'PHP'
+<?php
+use Illuminate\Database\Capsule\Manager;
+use Symfony\Component\Yaml\Yaml;
+use PhpOffice\PhpWord\Exception\Exception;
+use App\Domain\Helpers\StorageHelper;
+PHP;
+
+        $uses = $this->runVisitor($source)->getUseStatements();
+
+        $this->assertCount(1, $uses);
+        $this->assertSame('App\Domain\Helpers\StorageHelper', $uses[0]['fqcn']);
+    }
+
     public function test_still_reports_project_classes(): void
     {
         $source = <<<'PHP'
