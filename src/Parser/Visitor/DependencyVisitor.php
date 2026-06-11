@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace EduDeps\Parser\Visitor;
 
+use EduDeps\Parser\PhpBuiltinClasses;
 use PhpParser\Node;
 use PhpParser\Node\Expr\FuncCall;
 use PhpParser\Node\Expr\Include_;
@@ -56,9 +57,16 @@ final class DependencyVisitor extends NodeVisitorAbstract
             return null;
         }
         if ($node instanceof UseUse) {
+            $fqcn = $node->name->toString();
+            // "use Exception" / "use DateTime" no escopo global: classe nativa
+            // do PHP, nao corresponde a arquivo do projeto. So filtra nomes
+            // sem namespace — "use App\Foo" continua indo para o classmap.
+            if (strpos($fqcn, '\\') === false && $this->isStdlibClass($fqcn)) {
+                return null;
+            }
             $this->useStatements[] = [
                 'line' => $node->getStartLine(),
-                'fqcn' => $node->name->toString(),
+                'fqcn' => $fqcn,
             ];
             return null;
         }
@@ -125,8 +133,11 @@ final class DependencyVisitor extends NodeVisitorAbstract
 
     private function isStdlibClass(string $name): bool
     {
-        $stdlib = ['stdClass', 'Exception', 'Closure', 'ArrayObject', 'DateTime', 'DateTimeImmutable', 'PDO', 'PDOException', 'Error', 'TypeError', 'ValueError', 'RuntimeException', 'InvalidArgumentException', 'LogicException', 'self', 'static', 'parent'];
-        return in_array($name, $stdlib, true);
+        // Keywords de resolucao relativa nao sao classes nem dependencias.
+        if (in_array(strtolower($name), ['self', 'static', 'parent'], true)) {
+            return true;
+        }
+        return PhpBuiltinClasses::isBuiltin($name);
     }
 
     private function extractLiteralString(Node $node): ?string

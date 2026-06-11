@@ -61,6 +61,67 @@ PHP;
         $this->assertSame('include_non_literal', $visitor->getUnresolved()[0]['reason']);
     }
 
+    public function test_skips_php_builtin_classes_in_new_and_static_call(): void
+    {
+        $source = <<<'PHP'
+<?php
+$a = new DateInterval('P1D');
+$b = new DOMDocument();
+$c = new Exception('x');
+$d = DateTime::createFromFormat('Y-m-d', '2026-01-01');
+PHP;
+
+        $visitor = $this->runVisitor($source);
+
+        $this->assertCount(0, $visitor->getClassReferences());
+        $this->assertCount(0, $visitor->getUnresolved());
+    }
+
+    public function test_skips_builtin_classes_case_insensitively(): void
+    {
+        $source = <<<'PHP'
+<?php
+$a = new stdclass();
+$b = new StdClass();
+$c = new EXCEPTION('x');
+PHP;
+
+        $visitor = $this->runVisitor($source);
+
+        $this->assertCount(0, $visitor->getClassReferences());
+    }
+
+    public function test_skips_builtin_classes_in_use_statements(): void
+    {
+        $source = <<<'PHP'
+<?php
+use Exception;
+use DateTime;
+use App\Domain\Helpers\StorageHelper;
+PHP;
+
+        $visitor = $this->runVisitor($source);
+
+        $uses = $visitor->getUseStatements();
+        $this->assertCount(1, $uses);
+        $this->assertSame('App\Domain\Helpers\StorageHelper', $uses[0]['fqcn']);
+    }
+
+    public function test_still_reports_project_classes(): void
+    {
+        $source = <<<'PHP'
+<?php
+$a = new cl_aluno();
+$b = DBDate::getDia('2026-01-01');
+PHP;
+
+        $refs = $this->runVisitor($source)->getClassReferences();
+
+        $this->assertCount(2, $refs);
+        $this->assertSame('cl_aluno', $refs[0]['name']);
+        $this->assertSame('DBDate', $refs[1]['name']);
+    }
+
     /**
      * @return list<array{type:string,line:int,target:string}>
      */
