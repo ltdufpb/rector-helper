@@ -35,6 +35,8 @@ final class ClassMapBuilder
         'dbagata',
         'dbforms',
         'forms',
+        // Codigo moderno PSR-4 (namespace App\) fora de src/.
+        'app',
     ];
 
     private Parser $parser;
