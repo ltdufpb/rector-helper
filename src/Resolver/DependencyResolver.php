@@ -106,7 +106,7 @@ final class DependencyResolver
 
         $source = $loaded['source'];
 
-        $sourceHash = sha1($source);
+        $sourceHash = AstCache::hashFor($source);
         $ast = $this->astCache->get($sourceHash);
         if ($ast !== null) {
             $this->cacheHits++;

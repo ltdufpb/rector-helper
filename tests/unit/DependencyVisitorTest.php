@@ -123,6 +123,48 @@ PHP;
         $this->assertSame('App\Domain\Helpers\StorageHelper', $uses[0]['fqcn']);
     }
 
+    public function test_skips_class_references_already_covered_by_use_alias(): void
+    {
+        // Caso real do e-cidade: definitions.php e PluginService.service.php
+        // importam ECidade\V3\Modification\Manager com alias e instanciam
+        // pelo alias. A dependencia ja e capturada pelo proprio use.
+        $source = <<<'PHP'
+<?php
+use ECidade\V3\Modification\Manager as ModificationManager;
+use ECidade\V3\Arquivo\FileData;
+
+$a = new ModificationManager();
+$b = ModificationManager::instance();
+$c = new FileData();
+$d = new cl_aluno();
+PHP;
+
+        $visitor = $this->runVisitor($source);
+
+        $uses = $visitor->getUseStatements();
+        $this->assertCount(2, $uses);
+
+        $refs = $visitor->getClassReferences();
+        $this->assertCount(1, $refs);
+        $this->assertSame('cl_aluno', $refs[0]['name']);
+    }
+
+    public function test_parses_php84_new_without_parentheses_syntax(): void
+    {
+        // Sintaxe gerada pelo proprio Rector (set PHP_84) sobre o e-cidade:
+        // "new Classe()->metodo()". O php-parser v4 rejeitava com
+        // "unexpected T_OBJECT_OPERATOR" e o arquivo sumia do grafo.
+        $source = <<<'PHP'
+<?php
+$status = new HistoricoEscolar()->permiteManutencaoHistorico($oAluno);
+PHP;
+
+        $refs = $this->runVisitor($source)->getClassReferences();
+
+        $this->assertCount(1, $refs);
+        $this->assertSame('HistoricoEscolar', $refs[0]['name']);
+    }
+
     public function test_still_reports_project_classes(): void
     {
         $source = <<<'PHP'
