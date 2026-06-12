@@ -44,7 +44,9 @@ PHP;
         $this->assertSame(1, $result->filesAffected);
         $this->assertSame(1, $result->tagsReplaced);
 
-        $fixed = file_get_contents($this->tmpDir . '/a.php');
+        // Normaliza CRLF (ver Php4ConstructorFixerTest): assertiva nao deve
+        // depender do line ending do checkout (autocrlf no Windows).
+        $fixed = str_replace("\r\n", "\n", file_get_contents($this->tmpDir . '/a.php'));
         // Removido da propriedade...
         $this->assertStringNotContainsString("#[\\Override]\n    public \$campo", $fixed);
         $this->assertStringContainsString('public $campo = 1;', $fixed);
