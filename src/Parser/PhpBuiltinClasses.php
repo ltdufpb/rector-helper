@@ -79,7 +79,20 @@ final class PhpBuiltinClasses
         'simplexmlelement',
         'xmlreader',
         'xmlwriter',
+        // Interfaces nativas
+        'traversable',
+        'iterator',
+        'iteratoraggregate',
+        'arrayaccess',
+        'countable',
+        'stringable',
+        'serializable',
+        'jsonserializable',
+        // Phar
+        'phar',
+        'phardata',
         // Atributos nativos (PHP 8+)
+        'deprecated',
         'override',
         'attribute',
         'returntypewillchange',

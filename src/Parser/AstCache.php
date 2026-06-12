@@ -66,6 +66,14 @@ final class AstCache
         @file_put_contents($file, serialize($ast));
     }
 
+    public static function parserVersion(): string
+    {
+        if (class_exists(\Composer\InstalledVersions::class)) {
+            return \Composer\InstalledVersions::getVersion('nikic/php-parser') ?? 'unknown';
+        }
+        return 'unknown';
+    }
+
     private function fileFor(string $hash): ?string
     {
         if ($this->cacheDir === null) {
@@ -74,9 +82,20 @@ final class AstCache
         return $this->cacheDir . '/' . $hash . '.ast';
     }
 
+    /**
+     * Hash canonico de cache: a versao do php-parser entra no hash porque
+     * um AST serializado pela v4 nao pode ser reaproveitado apos upgrade
+     * para v5 (estrutura de nodes muda e arquivos que a v4 nem parseava
+     * passam a parsear). TODO caller de get/put deve usar este metodo.
+     */
+    public static function hashFor(string $source): string
+    {
+        return sha1($source . '|' . self::parserVersion());
+    }
+
     public function parseAndCache(Parser $parser, string $source): ?array
     {
-        $hash = sha1($source);
+        $hash = self::hashFor($source);
         $cached = $this->get($hash);
         if ($cached !== null) {
             return $cached;

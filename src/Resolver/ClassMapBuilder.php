@@ -131,7 +131,9 @@ final class ClassMapBuilder
         if ($this->cacheDir === null) {
             return null;
         }
-        $signature = sha1($projectRoot . '|' . implode(',', $scanDirs));
+        // Versao do parser na assinatura: classmap construido com parser
+        // antigo omite classes de arquivos que so a versao nova parseia.
+        $signature = sha1($projectRoot . '|' . implode(',', $scanDirs) . '|' . \EduDeps\Parser\AstCache::parserVersion());
         return $this->cacheDir . '/classmap_' . $signature . '.json';
     }
 

@@ -42,6 +42,9 @@ final class DependencyVisitor extends NodeVisitorAbstract
     /** @var list<array{line:int,reason:string,snippet:string}> */
     private array $unresolved = [];
 
+    /** @var array<string, true> nomes locais importados via use (minusculo) */
+    private array $useAliases = [];
+
     public function enterNode(Node $node)
     {
         if ($node instanceof Include_) {
@@ -58,6 +61,12 @@ final class DependencyVisitor extends NodeVisitorAbstract
         }
         if ($node instanceof UseUse) {
             $fqcn = $node->name->toString();
+            // Registra o nome local (alias explicito ou ultimo segmento) ANTES
+            // de qualquer filtro: "use X\Y\Manager as ModificationManager" +
+            // "new ModificationManager()" nao e classe nova a resolver — a
+            // dependencia ja foi capturada por este proprio use statement.
+            $localName = $node->alias !== null ? $node->alias->toString() : $node->name->getLast();
+            $this->useAliases[strtolower($localName)] = true;
             // "use Exception" / "use DateTime" no escopo global: classe nativa
             // do PHP, nao corresponde a arquivo do projeto. So filtra nomes
             // sem namespace — "use App\Foo" continua indo para o classmap.
@@ -119,7 +128,7 @@ final class DependencyVisitor extends NodeVisitorAbstract
             return;
         }
         $name = $node->class->toString();
-        if ($this->isStdlibClass($name)) {
+        if ($this->isStdlibClass($name) || $this->isUseAlias($name)) {
             return;
         }
         $this->classReferences[] = ['type' => 'new', 'line' => $node->getStartLine(), 'name' => $name];
@@ -131,10 +140,15 @@ final class DependencyVisitor extends NodeVisitorAbstract
             return;
         }
         $name = $node->class->toString();
-        if ($this->isStdlibClass($name)) {
+        if ($this->isStdlibClass($name) || $this->isUseAlias($name)) {
             return;
         }
         $this->classReferences[] = ['type' => 'static_call', 'line' => $node->getStartLine(), 'name' => $name];
+    }
+
+    private function isUseAlias(string $name): bool
+    {
+        return strpos($name, '\\') === false && isset($this->useAliases[strtolower($name)]);
     }
 
     private function isStdlibClass(string $name): bool
