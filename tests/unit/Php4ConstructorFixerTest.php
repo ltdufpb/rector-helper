@@ -48,7 +48,11 @@ PHP;
         $this->assertSame(1, $result->filesAffected);
         $this->assertSame(1, $result->tagsReplaced);
 
-        $fixed = file_get_contents($this->tmpDir . '/a.php');
+        // Normaliza CRLF: com core.autocrlf=true (Windows) o heredoc deste
+        // proprio arquivo de teste contem \r\n, que se propaga para a
+        // fixture e para a saida do printer. A assertiva nao deve depender
+        // do line ending do checkout.
+        $fixed = str_replace("\r\n", "\n", file_get_contents($this->tmpDir . '/a.php'));
         $this->assertStringContainsString('function __construct() {', $fixed);
         $this->assertStringNotContainsString('function cl_mer_nutricionista()', $fixed);
         // Diff cirurgico: o resto do arquivo permanece intacto.
