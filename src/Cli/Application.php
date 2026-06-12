@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace EduDeps\Cli;
 
 use EduDeps\Cli\Command\DoctorCommand;
+use EduDeps\Cli\Command\FixRegressionsCommand;
 use EduDeps\Cli\Command\FixShortTagsCommand;
+use EduDeps\Cli\Command\LintPhp8Command;
 use EduDeps\Cli\Command\RectorCommand;
 use EduDeps\Cli\Command\ScanCommand;
 use Symfony\Component\Console\Application as SymfonyApplication;
@@ -16,11 +18,13 @@ final class Application
 
     public function __construct()
     {
-        $this->app = new SymfonyApplication('edu-deps', '0.6.0');
+        $this->app = new SymfonyApplication('edu-deps', '0.7.0');
         $this->app->add(new ScanCommand());
         $this->app->add(new DoctorCommand());
         $this->app->add(new RectorCommand());
         $this->app->add(new FixShortTagsCommand());
+        $this->app->add(new LintPhp8Command());
+        $this->app->add(new FixRegressionsCommand());
     }
 
     public function run(): int
