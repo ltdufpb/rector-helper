@@ -333,6 +333,40 @@ Pedido após relato de erro em "Alimentação Escolar → Procedimentos → Aten
 
 ---
 
+## Regressão #6 — `withSkip()` com namespace errado: skip silenciosamente inerte (hotfix8)
+
+**Sintoma:** a regra `AddOverrideAttributeToOverriddenPropertiesRector`, supostamente skipada após a Regressão #2, continuava ativa em re-execuções do Rector.
+
+**Causa raiz:** o `withSkip()` referenciava a regra no namespace `Rector\Php83\...`, mas a classe real vive em `Rector\Php85\...`. O Rector **não valida** se o FQCN passado ao `withSkip()` existe — aceita string de classe inexistente sem warning, e o skip simplesmente não acontece.
+
+**Fix:** correção do namespace no `rector.php` + re-rodada do Rector com config refinado (`withRules` explícito para defesa em profundidade + `withImportNames(removeUnusedImports: true)`). Commit `f1b86023c` — 627 arquivos.
+
+**Prevenção:** preferir `::class` de classe importada (falha cedo no autoload) a string literal; validação futura no comando `rector` da edu-deps: para cada FQCN em `withSkip()`/`withRules()`, verificar `class_exists` no vendor do Rector.
+
+**Lição:** configuração de ferramenta também é código e também regride — um skip inerte é invisível até a regressão que ele deveria prevenir reaparecer.
+
+---
+
+## Regressão #7 — Shim invertido sobrescrevendo `$_SESSION` (hotfix9)
+
+**Sintoma:** `"Sessão inválida (12). Feche seu navegador e faça login novamente."` em qualquer opção após login aparentemente bem-sucedido. Arquivos de sessão em `/var/lib/php/sessions/` com ~21 bytes (apenas `DB_configuracao_ok`), sem `DB_login`/`DB_id_usuario`.
+
+**Causa raiz:** **regressão do próprio fix da Regressão #5.** O shim do hotfix5 fazia a atribuição na direção errada:
+
+```php
+$_SESSION = &$GLOBALS["HTTP_SESSION_VARS"];   // ERRADO — sobrescreve a superglobal moderna
+```
+
+Quando `session_start()` rodava depois, populava uma referência para array vazio e a sessão real se perdia.
+
+**Fix:** inverter a direção — as variáveis **antigas** recebem referência das **modernas**, nunca o contrário. Commit `5a632fc35`.
+
+**Detecção:** regex `\$_(SESSION|SERVER|POST|GET|COOKIE)\s*=\s*&?\s*\$GLOBALS\["HTTP_`.
+
+**Lição:** correção em bootstrap compartilhado (incluído em todo request) exige **teste funcional de login/sessão antes do commit** — lint e teste estrutural não capturam. E regressões também nascem dos fixes: o catálogo precisa registrar a si mesmo.
+
+---
+
 ## Próximas regressões esperadas (não confirmadas ainda)
 
 Hipóteses baseadas nas regras Rector aplicadas em alto volume:
@@ -345,23 +379,10 @@ Cada uma delas, quando aparecer, vira nova entrada neste documento + nova regra 
 
 ---
 
-## Catálogo formal (futuro)
+## Catálogo formal
 
-A meta é converter este `.md` em um YAML estruturado que a `edu-deps` consome:
+Este documento agora tem uma contraparte estruturada: **`config/regressions.yaml`**, com as 7 regras consolidadas (as 3 rodadas de short tags viram 1 regra com histórico), carregada e validada pela classe `EduDeps\Config\RegressionCatalog`. Cada entrada traz `deteccao` (padrão para o comando `lint-php8`) e `fix` (estratégia para o comando `fix-regressions`).
 
-```yaml
-regressions:
-  - id: rector-override-on-property
-    detection: ast-pattern
-    pattern: "Property with Attribute('Override')"
-    fix: remove-attribute
-    prevention:
-      skip_rule: Rector\Php83\Rector\Property\AddOverrideAttributeToOverriddenPropertiesRector
-  - id: php8-error-handler-context
-    detection: ast-pattern
-    pattern: "callback registered in set_error_handler with >4 required params"
-    fix: add-default-null-to-extra-params
-    prevention: null  # bug pré-existente, não decorrente de regra Rector
-```
+Adicionar a regressão nº 8 ao catálogo = adicionar uma entrada no YAML — sem mexer em código.
 
-Esse catálogo é a contribuição central da versão futura da `edu-deps`: ela deixa de ser apenas um descobridor de paths e passa a ser também um **guardião contra regressões conhecidas** específicas de PHP legado migrado por Rector.
+Esse catálogo é a contribuição central da edu-deps além da descoberta de paths: um **guardião contra regressões conhecidas** específicas de PHP legado migrado por Rector.
