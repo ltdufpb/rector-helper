@@ -1,0 +1,202 @@
+# Catalogo de regressoes conhecidas em projetos PHP legados migrados por Rector.
+#
+# Cada entrada documenta uma regressao descoberta empiricamente durante a
+# validacao funcional do e-cidade pos-Rector (PHP 5.6 -> 8.x), com padrao de
+# deteccao (consumido pelo comando lint-php8) e estrategia de correcao
+# (consumida pelo comando fix-regressions).
+#
+# Campos:
+#   id:            slug unico da regra
+#   titulo:        nome curto humano
+#   origem:        php8 (incompatibilidade pre-existente destravada)
+#                  | rector (regra do Rector gerou o problema)
+#                  | hotfix (regressao introduzida por correcao anterior)
+#   sintoma:       o que se observa em runtime
+#   causa_raiz:    explicacao tecnica
+#   deteccao:      como encontrar ocorrencias (tipo: regex|ast|config)
+#   fix:           como corrigir em massa (tipo: script|comando|manual)
+#   prevencao:     como impedir reaparicao
+#   volume_ecidade: numeros medidos no estudo de caso
+#   commits:       hashes no fork do e-cidade (rastreabilidade)
+
+version: 1
+
+regressions:
+  - id: error-handler-context
+    titulo: Error handler com quinto parametro $context obrigatorio
+    origem: php8
+    sintoma: >
+      ArgumentCountError: Too few arguments to function Error::_handle(),
+      4 passed and exactly 5 expected — fatal no primeiro erro/warning.
+    causa_raiz: >
+      Desde o PHP 8.0, set_error_handler() deixou de passar o quinto
+      argumento $context. Handlers legados que o declaram como obrigatorio
+      explodem na primeira notificacao de erro.
+    deteccao:
+      tipo: ast
+      padrao: callback registrado via set_error_handler com 5+ parametros obrigatorios
+    fix:
+      tipo: manual
+      descricao: adicionar default ($context = null) aos parametros extras
+    prevencao: nenhuma regra Rector cobre; entrada de lint-php8
+    volume_ecidade:
+      arquivos: 1
+    commits: [4ed666613]
+
+  - id: override-attribute-on-property
+    titulo: Atributo Override aplicado em propriedade
+    origem: rector
+    sintoma: >
+      Error: Attribute "Override" cannot target property (allowed targets: method)
+      ao carregar a classe.
+    causa_raiz: >
+      A regra AddOverrideAttributeToOverriddenPropertiesRector aplica
+      #[\Override] em propriedades sobrescritas, mas o atributo (PHP 8.3)
+      so aceita metodos. Regra prematura/incorreta do proprio Rector.
+    deteccao:
+      tipo: ast
+      padrao: node Property com atributo Override
+    fix:
+      tipo: script
+      script: scripts/fix-rector-override-on-properties.php
+      descricao: >
+        remove o atributo apenas de Property (preserva em ClassMethod) usando
+        printFormatPreserving para diff cirurgico de 1 linha por arquivo.
+    prevencao: >
+      adicionar AddOverrideAttributeToOverriddenPropertiesRector ao withSkip()
+      do rector.php — ATENCAO ao namespace correto da regra (ver regressao
+      rector-skip-namespace-errado).
+    volume_ecidade:
+      arquivos: 45
+    commits: [cba1fdd0d]
+
+  - id: php4-constructor
+    titulo: Construtor estilo PHP 4 (metodo com nome da classe)
+    origem: php8
+    sintoma: >
+      Call to a member function ...() on null — propriedades inicializadas no
+      construtor ficam null porque o metodo nunca e chamado.
+    causa_raiz: >
+      Em PHP 8.0 o metodo homonimo da classe deixou de ser reconhecido como
+      construtor. A regra Php4ConstructorRector EXISTE e estava ativa, mas so
+      atua em arquivos dentro de withPaths() — os 2.776 arquivos afetados
+      estavam fora do escopo de seeds da epoca (limitacao de escopo, nao de
+      regra).
+    deteccao:
+      tipo: ast
+      padrao: ClassMethod cujo nome (case-insensitive) == nome da classe, sem __construct definido
+    fix:
+      tipo: script
+      script: scripts/fix-php4-constructor.php
+      descricao: renomeia o metodo para __construct quando nao ha conflito.
+    prevencao: >
+      expandir seeds do scan para alcancar o modulo; com o arquivo em
+      withPaths(), o proprio Rector converte.
+    volume_ecidade:
+      arquivos: 2776
+      observacao: 2.911 metodos renomeados; 2 classes _ext exigiram fix manual (declaram construtor com nome da classe PAI)
+    commits: [2952b8435]
+
+  - id: short-open-tags
+    titulo: Short open tags <? tratados como texto
+    origem: php8
+    sintoma: >
+      Codigo PHP impresso literalmente no HTML do browser; paginas em branco;
+      logica inteira pulada.
+    causa_raiz: >
+      PHP 8 desabilita short_open_tag por padrao. Nenhuma das 141 regras
+      oficiais do Rector cobre (problema PRE-parse: o runtime nem reconhece o
+      trecho como PHP).
+    deteccao:
+      tipo: regex
+      padrao: '<\?(?!php|=|xml)'
+      observacao: >
+        PCRE com lookahead via PHP — NAO usar grep com bracket expression:
+        [^pxe?=] falha em <? no fim de linha (exige caractere real) e
+        grep -P exige locale UTF-8 (quebra em arquivos ISO-8859-1).
+    fix:
+      tipo: comando
+      comando: bin/edu-deps fix-short-tags
+      descricao: substituicao idempotente preservando <?php, <?= e <?xml.
+    prevencao: >
+      regra central: o padrao de DETECCAO deve cobrir exatamente os mesmos
+      casos do padrao de SUBSTITUICAO — as 3 rodadas de hotfix (746, +1.426,
+      +11.108 arquivos) vieram de regex de deteccao mais estreito que o fix.
+    volume_ecidade:
+      arquivos: 13280
+      observacao: ~50.000 tags em 3 rodadas (hotfix4, hotfix6, hotfix7)
+    commits: [a4eae6046, 2bc2c32a6, c09807392]
+
+  - id: http-vars-superglobais
+    titulo: Superglobais PHP 4 ($HTTP_*_VARS) inexistentes
+    origem: php8
+    sintoma: >
+      Propriedades vazias e redirects quebrados — ex:
+      basename($GLOBALS["HTTP_SERVER_VARS"]["PHP_SELF"]) retorna string vazia.
+    causa_raiz: >
+      $HTTP_SERVER_VARS, $HTTP_POST_VARS etc. foram removidas no PHP 5.4.
+      O e-cidade as usa em ~9.778 arquivos. O shim historico em
+      libs/db_stdlib.php estava invertido (garantia as modernas, nao as antigas).
+    deteccao:
+      tipo: regex
+      padrao: 'HTTP_(SERVER|POST|GET|COOKIE|SESSION)_VARS'
+    fix:
+      tipo: script
+      descricao: >
+        shim em ponto unico de bootstrap (libs/db_stdlib.php): popula
+        $GLOBALS["HTTP_*_VARS"] A PARTIR das superglobais modernas e cria
+        alias por referencia das variaveis antigas. Direcao SEMPRE
+        moderna -> antiga (ver regressao shim-sobrescreve-superglobal).
+    prevencao: comando futuro inject-shim com a versao validada do shim
+    volume_ecidade:
+      arquivos: 9778
+      observacao: 1 arquivo de shim + 2 construtores _ext corrigidos a mao
+    commits: [47e0ef209]
+
+  - id: rector-skip-namespace-errado
+    titulo: withSkip() com namespace errado da regra — skip silenciosamente inerte
+    origem: rector
+    sintoma: >
+      A regra supostamente skipada continua sendo aplicada em re-execucoes do
+      Rector; a regressao que ela causa reaparece.
+    causa_raiz: >
+      O withSkip() referenciava Rector\Php83\...\AddOverrideAttributeRector,
+      mas a classe real vive em outro namespace (Php85). O Rector nao valida
+      se a classe skipada existe — aceita FQCN inexistente sem warning.
+    deteccao:
+      tipo: config
+      padrao: para cada FQCN em withSkip()/withRules(), verificar class_exists no vendor do Rector
+    fix:
+      tipo: manual
+      descricao: corrigir o namespace; preferir ::class de classe importada (falha cedo) a string.
+    prevencao: validacao de config no comando rector da edu-deps (futuro)
+    volume_ecidade:
+      arquivos: 627
+      observacao: re-rodada do Rector (hotfix8) com config corrigido + withImportNames
+    commits: [f1b86023c]
+
+  - id: shim-sobrescreve-superglobal
+    titulo: Shim invertido sobrescrevendo superglobais modernas (quebrou $_SESSION)
+    origem: hotfix
+    sintoma: >
+      "Sessao invalida (12). Feche seu navegador e faca login novamente." em
+      qualquer opcao pos-login; arquivos de sessao com ~21 bytes, sem
+      DB_login/DB_id_usuario.
+    causa_raiz: >
+      Regressao DO PROPRIO FIX da regressao http-vars-superglobais: o shim
+      fazia $_SESSION = &$GLOBALS["HTTP_SESSION_VARS"] (direcao invertida).
+      session_start() entao populava uma referencia para array vazio e a
+      sessao real se perdia.
+    deteccao:
+      tipo: regex
+      padrao: '\$_(SESSION|SERVER|POST|GET|COOKIE)\s*=\s*&?\s*\$GLOBALS\["HTTP_'
+    fix:
+      tipo: manual
+      descricao: inverter a direcao — antigas recebem referencia das modernas, nunca o contrario.
+    prevencao: >
+      licao central: correcao em bootstrap compartilhado exige teste de
+      login/sessao antes do commit; o teste estrutural (lint) nao captura.
+    volume_ecidade:
+      arquivos: 1
+      observacao: efeito sistemico — derrubava a sessao de todo o sistema
+    commits: [5a632fc35]
