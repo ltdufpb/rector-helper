@@ -26,7 +26,7 @@ final class OverrideOnPropertyFixer extends AbstractAstFixer
         return stripos($source, 'Override') !== false;
     }
 
-    protected function mutate(array $newAst): int
+    protected function mutate(array &$newAst): int
     {
         $removed = 0;
 

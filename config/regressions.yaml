@@ -175,6 +175,47 @@ regressions:
       observacao: re-rodada do Rector (hotfix8) com config corrigido + withImportNames
     commits: [f1b86023c]
 
+  - id: parse-str-sem-segundo-arg
+    titulo: parse_str() chamada com um unico argumento
+    origem: php8
+    sintoma: >
+      ArgumentCountError: parse_str() expects exactly 2 arguments, 1 given —
+      fatal ao abrir a tela (ex: atendimento de requisicao,
+      func_matrequiatend.php).
+    causa_raiz: >
+      O modo de 1 argumento de parse_str() (que importava as variaveis no
+      escopo local) foi removido no PHP 8.0; agora o array de saida e
+      obrigatorio. Nenhuma regra do Rector cobre — e mudanca de assinatura
+      de funcao nativa, nao de sintaxe.
+    deteccao:
+      tipo: regex
+      padrao: 'parse_str\s*\(\s*[^,;\n]*\)\s*;'
+      observacao: >
+        casa a chamada em statement sem virgula de topo (1 arg). O fixer AST e
+        a fonte autoritativa da contagem — o regex pode subnotificar casos
+        exoticos com virgula interna (ex: parse_str(f($a, $b))).
+    fix:
+      tipo: comando
+      comando: bin/edu-deps fix-regressions --rule=parse-str-sem-segundo-arg
+      descricao: >
+        ParseStrFixer (AST): acrescenta o 2o argumento $_parseStr a chamada
+        existente (preserva o texto do 1o arg) e insere
+        extract($_parseStr, EXTR_SKIP); logo apos, preservando a semantica
+        legada de importar as variaveis no escopo.
+    prevencao: >
+      consolidar no catalogo em vez de regex ad-hoc: o passe anterior corrigiu
+      ~479 arquivos com um regex Perl fora da ferramenta que so casava
+      parse_str($var) em edu*/mer* — deixou 83 arquivos de Educacao quebrados
+      (descobertos so em runtime).
+    volume_ecidade:
+      arquivos: 83
+      observacao: >
+        83 no escopo Educacao (ex: func_aluno*, func_turma*, func_diario*,
+        func_escola*, func_censo*, func_matricul*, func_matrequi*); milhares no
+        projeto inteiro. Variantes: $HTTP_SERVER_VARS["QUERY_STRING"] (via shim),
+        $_SERVER["QUERY_STRING"], base64_decode(...).
+    commits: []
+
   - id: shim-sobrescreve-superglobal
     titulo: Shim invertido sobrescrevendo superglobais modernas (quebrou $_SESSION)
     origem: hotfix

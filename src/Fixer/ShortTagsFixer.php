@@ -35,16 +35,21 @@ final class ShortTagsFixer
     /** @var list<string> substrings de path; arquivo cujo path contem qualquer uma e pulado */
     private array $excludePatterns;
 
+    /** @var list<string>|null substrings de path; se setado, so processa paths que contem alguma (escopo) */
+    private ?array $includePatterns;
+
     /**
      * @param list<string>|null $excludePatterns
+     * @param list<string>|null $includePatterns escopo: null = todo o projeto; senao, so paths que contem alguma substring
      */
-    public function __construct(?array $excludePatterns = null)
+    public function __construct(?array $excludePatterns = null, ?array $includePatterns = null)
     {
         $this->excludePatterns = $excludePatterns ?? [
             '/vendor/',
             '/node_modules/',
             '/extension/modification/',
         ];
+        $this->includePatterns = ($includePatterns === null || $includePatterns === []) ? null : $includePatterns;
     }
 
     /**
@@ -126,6 +131,14 @@ final class ShortTagsFixer
             if (strpos($path, $pattern) !== false) {
                 return true;
             }
+        }
+        if ($this->includePatterns !== null) {
+            foreach ($this->includePatterns as $pattern) {
+                if (strpos($path, $pattern) !== false) {
+                    return false;
+                }
+            }
+            return true;
         }
         return false;
     }
