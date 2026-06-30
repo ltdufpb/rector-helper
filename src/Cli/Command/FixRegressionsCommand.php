@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace EduDeps\Cli\Command;
 
 use EduDeps\Config\RegressionCatalog;
+use EduDeps\Fixer\CurlyStringOffsetFixer;
 use EduDeps\Fixer\OverrideOnPropertyFixer;
 use EduDeps\Fixer\ParseStrFixer;
 use EduDeps\Fixer\PgResultGuardFixer;
@@ -47,6 +48,7 @@ final class FixRegressionsCommand extends Command
             'override-attribute-on-property' => static fn (): object => new OverrideOnPropertyFixer(null, $include),
             'parse-str-sem-segundo-arg' => static fn (): object => new ParseStrFixer(null, $include),
             'pg-result-false-typeerror' => static fn (): object => new PgResultGuardFixer(null, $include),
+            'string-offset-com-chaves' => static fn (): object => new CurlyStringOffsetFixer(null, $include),
         ];
     }
 

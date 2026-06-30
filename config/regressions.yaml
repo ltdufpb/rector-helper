@@ -285,6 +285,44 @@ regressions:
         helpers dbforms/libs; aplicar com escopo controlado.
     commits: []
 
+  - id: string-offset-com-chaves
+    titulo: Acesso a string/array com chaves
+    origem: php8
+    sintoma: >
+      ParseError: syntax error, unexpected token "{" ao carregar arquivo com
+      acesso legado como $str{$i} ou $arr['key']{$i}. No caso confirmado, o
+      login abria a janela pos-autenticacao em about:blank porque o captcha
+      carregava `securimage/securimage.php` e quebrava antes de renderizar.
+    causa_raiz: >
+      A sintaxe de offset por chaves para strings/arrays foi removida no PHP
+      8.0. Como o arquivo falha no parse, regras AST do Rector nao conseguem
+      atuar se o arquivo estiver nessa situacao.
+    deteccao:
+      tipo: regex
+      padrao: '\$[A-Za-z_][A-Za-z0-9_]*((->|::)[A-Za-z_][A-Za-z0-9_]*|\[[^\]\r\n]+\])*\{[^{}\r\n;]+\}'
+      observacao: >
+        Padrao pre-parse conservador para variaveis simples, propriedades de
+        objeto e offsets de array encadeados. Casos muito dinamicos devem ser
+        avaliados manualmente.
+    fix:
+      tipo: comando
+      comando: bin/edu-deps fix-regressions --rule=string-offset-com-chaves
+      descricao: >
+        CurlyStringOffsetFixer (regex pre-parse): transforma $str{$i} em
+        $str[$i], $arr['key']{$i} em $arr['key'][$i] e $obj->prop{$i} em
+        $obj->prop[$i], preservando a expressao do indice.
+    prevencao: >
+      Rodar a regra em bibliotecas compartilhadas antes da validacao funcional,
+      especialmente arquivos de bootstrap/login/captcha que podem impedir o
+      acesso ao sistema inteiro.
+    volume_ecidade:
+      arquivos: 2
+      observacao: >
+        Casos confirmados em `securimage/securimage.php`, linha 1915, e
+        `securimage/WavFile.php`, linha 1555, durante login/captcha. A regra
+        deve ser usada para medir o volume total antes de um lote amplo.
+    commits: []
+
   - id: shim-sobrescreve-superglobal
     titulo: Shim invertido sobrescrevendo superglobais modernas (quebrou $_SESSION)
     origem: hotfix
