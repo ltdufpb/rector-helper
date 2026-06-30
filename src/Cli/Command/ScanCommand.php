@@ -8,6 +8,7 @@ use EduDeps\Config\Overrides;
 use EduDeps\Fixer\ShortTagsFixer;
 use EduDeps\Graph\CycleDetector;
 use EduDeps\Graph\TopologicalSorter;
+use EduDeps\Menu\MenuMapSeedCollector;
 use EduDeps\Output\JsonWriter;
 use EduDeps\Output\MermaidWriter;
 use EduDeps\Output\UnresolvedReportWriter;
@@ -29,10 +30,20 @@ final class ScanCommand extends Command
     protected function configure(): void
     {
         $this
-            ->setDescription('Resolve o grafo de dependencias a partir de seeds edu*.php (F1+F2: BFS + Tarjan + Mermaid).')
+            ->setDescription('Resolve o grafo de dependencias a partir dos seeds do recorte Educacao (F1+F2: BFS + Tarjan + Mermaid).')
             ->addOption('project-root', null, InputOption::VALUE_REQUIRED, 'Raiz do projeto e-cidade')
             ->addOption('file', null, InputOption::VALUE_REQUIRED, 'Arquivo unico para analisar (relativo ao project-root)')
-            ->addOption('seeds-glob', null, InputOption::VALUE_REQUIRED, 'Padrao glob para seeds (default: edu*.php na raiz)', 'edu*.php')
+            ->addOption(
+                'seeds-glob',
+                null,
+                InputOption::VALUE_REQUIRED,
+                'Padrao(s) glob para seeds, separados por virgula',
+                'edu*.php,mer*.php,func_mer_*.php,func_atendrequi.php,func_matestoquetransf*.php,func_matestoqueini*.php,func_matpedido*.php,mat1_matrequi*.php,mat1_matestoqueini*.php,mat4_matpedido002.php,mat4_matpedido003.php,mat1_matpedidoitem001.php'
+            )
+            ->addOption('menu-map', null, InputOption::VALUE_REQUIRED, 'HTML do mapa de menus para adicionar seeds de telas abertas diretamente')
+            ->addOption('menu-area', null, InputOption::VALUE_REQUIRED, 'Filtro de area do mapa de menus', 'EDU')
+            ->addOption('menu-module', null, InputOption::VALUE_REQUIRED, 'Filtro de modulo/submodulo do mapa de menus')
+            ->addOption('menu-path-contains', null, InputOption::VALUE_REQUIRED, 'Filtro parcial do caminho de menu, ex.: Procedimentos')
             ->addOption('output-dir', null, InputOption::VALUE_REQUIRED, 'Pasta de saida (default: ./out)', null)
             ->addOption('cache-dir', null, InputOption::VALUE_REQUIRED, 'Pasta de cache (default: ./cache; passe "" para desabilitar)', null)
             ->addOption('skip-classmap', null, InputOption::VALUE_NONE, 'Pula construcao do classmap (apenas modification + includes literais)')
@@ -229,10 +240,21 @@ final class ScanCommand extends Command
             return [PathResolver::normalize(realpath($absolute) ?: $absolute)];
         }
 
-        $glob = (string) $input->getOption('seeds-glob');
-        $matches = glob($projectRoot . '/' . $glob) ?: [];
+        $globs = $this->parseSeedGlobs((string) $input->getOption('seeds-glob'));
+        $matches = [];
+        foreach ($globs as $glob) {
+            foreach (glob($projectRoot . '/' . $glob) ?: [] as $match) {
+                $matches[$match] = true;
+            }
+        }
+        $menuSeeds = $this->collectMenuSeeds($input, $projectRoot, $io);
+        foreach ($menuSeeds as $seed) {
+            $matches[$seed] = true;
+        }
+
+        $matches = array_keys($matches);
         if ($matches === []) {
-            $io->error(sprintf('Nenhum seed encontrado para o padrao %s em %s', $glob, $projectRoot));
+            $io->error(sprintf('Nenhum seed encontrado para o(s) padrao(s) %s em %s', implode(', ', $globs), $projectRoot));
             return null;
         }
 
@@ -244,5 +266,57 @@ final class ScanCommand extends Command
             }
         }
         return $seeds;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function collectMenuSeeds(InputInterface $input, string $projectRoot, SymfonyStyle $io): array
+    {
+        $menuMap = $input->getOption('menu-map');
+        if ($menuMap === null || trim((string) $menuMap) === '') {
+            return [];
+        }
+
+        $mapFile = PathResolver::normalize((string) $menuMap);
+        $seeds = (new MenuMapSeedCollector())->collect(
+            $mapFile,
+            $projectRoot,
+            (string) $input->getOption('menu-area'),
+            $input->getOption('menu-module') !== null ? (string) $input->getOption('menu-module') : null,
+            $input->getOption('menu-path-contains') !== null ? (string) $input->getOption('menu-path-contains') : null
+        );
+
+        if ($seeds === []) {
+            $io->warning(sprintf('Mapa de menus nao adicionou seeds: %s', $mapFile));
+            return [];
+        }
+
+        $io->writeln(sprintf('<comment>Mapa de menus adicionou %d seed(s).</comment>', count($seeds)));
+        return $seeds;
+    }
+
+    /** @return list<string> */
+    private function parseSeedGlobs(string $option): array
+    {
+        $globs = array_values(array_filter(
+            array_map('trim', explode(',', $option)),
+            static fn (string $glob): bool => $glob !== ''
+        ));
+
+        return $globs !== [] ? $globs : [
+            'edu*.php',
+            'mer*.php',
+            'func_mer_*.php',
+            'func_atendrequi.php',
+            'func_matestoquetransf*.php',
+            'func_matestoqueini*.php',
+            'func_matpedido*.php',
+            'mat1_matrequi*.php',
+            'mat1_matestoqueini*.php',
+            'mat4_matpedido002.php',
+            'mat4_matpedido003.php',
+            'mat1_matpedidoitem001.php',
+        ];
     }
 }

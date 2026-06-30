@@ -28,19 +28,24 @@ abstract class AbstractAstFixer
     /** @var list<string> substrings de path; arquivo cujo path contem qualquer uma e pulado */
     private array $excludePatterns;
 
+    /** @var list<string>|null substrings de path; se setado, so processa arquivos cujo path contem alguma (escopo) */
+    private ?array $includePatterns;
+
     private Parser $parser;
     private Standard $printer;
 
     /**
      * @param list<string>|null $excludePatterns
+     * @param list<string>|null $includePatterns escopo: null = todo o projeto; senao, so paths que contem alguma substring
      */
-    public function __construct(?array $excludePatterns = null)
+    public function __construct(?array $excludePatterns = null, ?array $includePatterns = null)
     {
         $this->excludePatterns = $excludePatterns ?? [
             '/vendor/',
             '/node_modules/',
             '/extension/modification/',
         ];
+        $this->includePatterns = ($includePatterns === null || $includePatterns === []) ? null : $includePatterns;
         $this->parser = ParserFactory::create();
         $this->printer = new Standard();
     }
@@ -62,12 +67,17 @@ abstract class AbstractAstFixer
     abstract protected function shouldParse(string $source): bool;
 
     /**
-     * Modifica o AST clonado in-place e retorna o numero de ocorrencias
-     * corrigidas (0 = arquivo intacto, nada e gravado).
+     * Modifica o AST clonado e retorna o numero de ocorrencias corrigidas
+     * (0 = arquivo intacto, nada e gravado).
+     *
+     * $newAst e passado POR REFERENCIA: mutacoes in-place de nos (ex: renomear
+     * um metodo) bastam, mas fixers que inserem/removem statements no array de
+     * TOPO precisam reatribuir $newAst com o retorno de traverse() — o array
+     * raiz nao e modificado in-place pelo NodeTraverser.
      *
      * @param array<\PhpParser\Node> $newAst
      */
-    abstract protected function mutate(array $newAst): int;
+    abstract protected function mutate(array &$newAst): int;
 
     private function run(string $projectRoot, bool $dryRun): FixResult
     {
@@ -88,7 +98,7 @@ abstract class AbstractAstFixer
                 continue;
             }
             $path = str_replace('\\', '/', $file->getPathname());
-            if ($this->isExcluded($path)) {
+            if ($this->isExcluded($path) || !$this->isIncluded($path)) {
                 $result->filesSkipped++;
                 continue;
             }
@@ -148,6 +158,19 @@ abstract class AbstractAstFixer
     private function isExcluded(string $path): bool
     {
         foreach ($this->excludePatterns as $pattern) {
+            if (strpos($path, $pattern) !== false) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private function isIncluded(string $path): bool
+    {
+        if ($this->includePatterns === null) {
+            return true;
+        }
+        foreach ($this->includePatterns as $pattern) {
             if (strpos($path, $pattern) !== false) {
                 return true;
             }

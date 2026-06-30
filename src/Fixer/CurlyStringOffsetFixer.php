@@ -9,38 +9,24 @@ use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 
 /**
- * Corrige short open tags PHP 4 (`<?`) em projetos legados.
+ * Corrige acesso legado a string/array com chaves: $str{$i} -> $str[$i].
  *
- * Padrao alvo: `<?` que nao seja `<?php`, `<?=` ou `<?xml`. Usa PCRE com
- * lookahead negativo para cobrir casos especiais como `<?` no fim de linha
- * (apenas seguido por \n) que escapam de regex bracket como `[^pxe?=]`.
- *
- * Idempotente: rodar duas vezes resulta em 0 mudancas na segunda. So grava
- * arquivos com mudancas reais (preserva mtime, evita poluir git status).
- *
- * Esta classe e usada pelo comando CLI `bin/edu-deps fix-short-tags` e
- * tambem pelo script standalone `scripts/fix-short-open-tags.php` (que
- * agora e wrapper fino sobre ela).
- *
- * Lican aprendida documentada em edu-deps/docs/REGRESSOES_RECTOR.md
- * (Regressao #4): o Rector NAO converte `<?` para `<?php` — short tag e
- * problema PRE-parse, fora do escopo de regras Rector. Por isso a edu-deps
- * precisa cobrir.
+ * Este e um problema pre-parse em PHP 8: arquivos com essa sintaxe podem
+ * quebrar antes de qualquer regra AST conseguir atuar.
  */
-final class ShortTagsFixer
+final class CurlyStringOffsetFixer
 {
-    private const PATTERN = '/<\?(?!php|=|xml)/';
-    private const REPLACEMENT = '<?php ';
+    private const PATTERN = '/(?<![A-Za-z0-9_$])(\$[A-Za-z_][A-Za-z0-9_]*(?:(?:->|::)[A-Za-z_][A-Za-z0-9_]*|\[[^\]\r\n]+\])*)\{([^{}\r\n;]+)\}/';
 
-    /** @var list<string> substrings de path; arquivo cujo path contem qualquer uma e pulado */
+    /** @var list<string> */
     private array $excludePatterns;
 
-    /** @var list<string>|null substrings de path; se setado, so processa paths que contem alguma (escopo) */
+    /** @var list<string>|null */
     private ?array $includePatterns;
 
     /**
      * @param list<string>|null $excludePatterns
-     * @param list<string>|null $includePatterns escopo: null = todo o projeto; senao, so paths que contem alguma substring
+     * @param list<string>|null $includePatterns
      */
     public function __construct(?array $excludePatterns = null, ?array $includePatterns = null)
     {
@@ -52,17 +38,11 @@ final class ShortTagsFixer
         $this->includePatterns = ($includePatterns === null || $includePatterns === []) ? null : $includePatterns;
     }
 
-    /**
-     * Conta short tags sem modificar disco. Util para pre-check do scan.
-     */
     public function detect(string $projectRoot): FixResult
     {
         return $this->run($projectRoot, true);
     }
 
-    /**
-     * Aplica o fix. Em modo dryRun, conta mas nao grava.
-     */
     public function fix(string $projectRoot, bool $dryRun = false): FixResult
     {
         return $this->run($projectRoot, $dryRun);
@@ -86,28 +66,32 @@ final class ShortTagsFixer
             if (!$file->isFile() || strtolower($file->getExtension()) !== 'php') {
                 continue;
             }
-            $path = str_replace('\\', '/', $file->getPathname());
 
+            $path = str_replace('\\', '/', $file->getPathname());
             if ($this->shouldSkip($path)) {
                 $result->filesSkipped++;
                 continue;
             }
 
             $result->filesScanned++;
-
             $source = @file_get_contents($path);
             if ($source === false) {
                 $result->filesWithErrors++;
                 continue;
             }
 
-            // Otimizacao: pula arquivos sem nenhum '<?'
-            if (strpos($source, '<?') === false) {
+            if (strpos($source, '{') === false || strpos($source, '$') === false) {
                 continue;
             }
 
             $count = 0;
-            $new = preg_replace(self::PATTERN, self::REPLACEMENT, $source, -1, $count);
+            $new = preg_replace_callback(
+                self::PATTERN,
+                static fn (array $matches): string => $matches[1] . '[' . trim($matches[2]) . ']',
+                $source,
+                -1,
+                $count
+            );
 
             if ($new === null || $count === 0 || $new === $source) {
                 continue;
@@ -132,14 +116,17 @@ final class ShortTagsFixer
                 return true;
             }
         }
-        if ($this->includePatterns !== null) {
-            foreach ($this->includePatterns as $pattern) {
-                if (strpos($path, $pattern) !== false) {
-                    return false;
-                }
-            }
-            return true;
+
+        if ($this->includePatterns === null) {
+            return false;
         }
-        return false;
+
+        foreach ($this->includePatterns as $pattern) {
+            if (strpos($path, $pattern) !== false) {
+                return false;
+            }
+        }
+
+        return true;
     }
 }

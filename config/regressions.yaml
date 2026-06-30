@@ -175,6 +175,154 @@ regressions:
       observacao: re-rodada do Rector (hotfix8) com config corrigido + withImportNames
     commits: [f1b86023c]
 
+  - id: parse-str-sem-segundo-arg
+    titulo: parse_str() chamada com um unico argumento
+    origem: php8
+    sintoma: >
+      ArgumentCountError: parse_str() expects exactly 2 arguments, 1 given —
+      fatal ao abrir a tela (ex: atendimento de requisicao,
+      func_matrequiatend.php).
+    causa_raiz: >
+      O modo de 1 argumento de parse_str() (que importava as variaveis no
+      escopo local) foi removido no PHP 8.0; agora o array de saida e
+      obrigatorio. Nenhuma regra do Rector cobre — e mudanca de assinatura
+      de funcao nativa, nao de sintaxe.
+    deteccao:
+      tipo: regex
+      padrao: 'parse_str\s*\(\s*[^,;\n]*\)\s*;'
+      observacao: >
+        casa a chamada em statement sem virgula de topo (1 arg). O fixer AST e
+        a fonte autoritativa da contagem — o regex pode subnotificar casos
+        exoticos com virgula interna (ex: parse_str(f($a, $b))).
+    fix:
+      tipo: comando
+      comando: bin/edu-deps fix-regressions --rule=parse-str-sem-segundo-arg
+      descricao: >
+        ParseStrFixer (AST): acrescenta o 2o argumento $_parseStr a chamada
+        existente (preserva o texto do 1o arg) e insere
+        extract($_parseStr, EXTR_SKIP); logo apos, preservando a semantica
+        legada de importar as variaveis no escopo.
+    prevencao: >
+      consolidar no catalogo em vez de regex ad-hoc: o passe anterior corrigiu
+      ~479 arquivos com um regex Perl fora da ferramenta que so casava
+      parse_str($var) em edu*/mer* — deixou 83 arquivos de Educacao quebrados
+      (descobertos so em runtime). A retomada em Alimentacao Escolar mostrou
+      tambem que telas abertas diretamente pelo menu podem ficar fora do grafo
+      quando os seeds cobrem apenas edu*.php; por isso o scan passou a aceitar
+      multiplos globs e o recorte padrao inclui edu*.php, mer*.php,
+      func_atendrequi.php e func_mer_*.php. A validacao dos procedimentos de
+      Alimentacao Escolar revelou o mesmo padrao em transferencia entre
+      depositos, acionada por func_matestoquetransf*.php; esse recorte
+      especifico tambem passou a compor o seed padrao sem abrir todo o modulo
+      de Materiais. A continuacao da validacao mostrou que a alteracao da
+      transferencia e a solicitacao de transferencia tambem passam por
+      func_matestoqueini*.php, mat4_matpedido002.php, mat4_matpedido003.php e
+      mat1_matpedidoitem001.php, adicionados como seeds explicitos do mesmo
+      fluxo. O reteste de Solicitacao de transferencia revelou ainda o iframe
+      auxiliar func_matpedido*.php, incluido como seed da mesma trilha. A tela
+      Requisicao de saida de materiais revelou `mat1_matrequi*.php` como outra
+      entrada direta de menu do grupo Procedimentos; ela tambem passou a compor
+      o recorte padrao. A tela Entrada manual de estoque revelou
+      `mat1_matestoqueini*.php` no cancelamento, tambem tratado como entrada
+      direta do mesmo grupo. A preparacao do submodulo Biblioteca com seeds do
+      mapa de menus revelou 31 arquivos `bib*` com o mesmo padrao. A preparacao
+      dos submodulos Escola e Secretaria Educacao revelou mais 4 ocorrencias em
+      `esc1_tipoausencia*` e `sec1_termoresultadofinal*`. A preparacao de
+      Transporte Escolar revelou 26 ocorrencias em arquivos `tra*`/`tre*`
+      alcancados pelo mapa de menus.
+    volume_ecidade:
+      arquivos: 208
+      observacao: >
+        83 no escopo Educacao (ex: func_aluno*, func_turma*, func_diario*,
+        func_escola*, func_censo*, func_matricul*, func_matrequi*) + 1 em
+        Alimentacao Escolar/Procedimentos (func_atendrequi.php) + 41 em
+        Alimentacao Escolar/Cadastros (func_mer_*) + 2 em Transferencia entre
+        depositos (func_matestoquetransf*) + 8 em estoque/pedido de
+        transferencia (func_matestoqueini*, mat4_matpedido002/003.php,
+        mat1_matpedidoitem001.php) + 5 em iframes de pedido
+        (func_matpedido*) + 4 em requisicao de saida de materiais
+        (mat1_matrequi*) + 3 em entrada manual de estoque
+        (mat1_matestoqueini*) + 31 em Biblioteca (`bib*`) + 4 em
+        Escola/Secretaria (`esc1_tipoausencia*`,
+        `sec1_termoresultadofinal*`) + 26 em Transporte Escolar (`tra*`/`tre*`);
+        milhares no projeto inteiro. Variantes:
+        $HTTP_SERVER_VARS["QUERY_STRING"] (via shim),
+        $_SERVER["QUERY_STRING"], base64_decode(...).
+    commits: []
+
+  - id: pg-result-false-typeerror
+    titulo: Funcoes pg_num* chamadas com resultado false/null
+    origem: php8
+    sintoma: >
+      TypeError: pg_numrows()/pg_num_rows()/pg_numfields()/pg_num_fields()
+      exige PgSql\Result, mas db_query() pode retornar false em consultas
+      dinamicas; o operador @ nao suprime TypeError no PHP 8.
+    causa_raiz: >
+      No PHP legado, @pg_numrows(false) ficava como warning suprimido e o fluxo
+      continuava. Em PHP 8+, a extensao pgsql usa tipos estritos e rejeita
+      false/null antes de retornar contagem. Telas genericas de iframe/listagem
+      montam SQL dinamico e podem receber false de db_query().
+    deteccao:
+      tipo: ast
+      padrao: atribuicoes diretas com pg_numrows/pg_num_rows/pg_numfields/pg_num_fields sobre variavel sem guard false/null
+    fix:
+      tipo: comando
+      comando: bin/edu-deps fix-regressions --rule=pg-result-false-typeerror
+      descricao: >
+        PgResultGuardFixer (AST): transforma atribuicoes diretas como
+        $numrows = @pg_numrows($result); em
+        $numrows = ($result === false || $result === null) ? 0 : @pg_numrows($result);
+        preservando a chamada original no caminho valido.
+    prevencao: >
+      Rodar a regra nos arquivos compartilhados do escopo Educacao/dbforms/libs
+      depois de cada falha de runtime envolvendo PgSql\Result false, e validar
+      funcionalmente a tela que revelou a query invalida.
+    volume_ecidade:
+      arquivos: 1
+      observacao: >
+        Confirmado em dbforms/db_classes_iframe_alterar_excluir.php na tela
+        Informacoes dos alunos > registro. Padrao provavelmente recorrente em
+        helpers dbforms/libs; aplicar com escopo controlado.
+    commits: []
+
+  - id: string-offset-com-chaves
+    titulo: Acesso a string/array com chaves
+    origem: php8
+    sintoma: >
+      ParseError: syntax error, unexpected token "{" ao carregar arquivo com
+      acesso legado como $str{$i} ou $arr['key']{$i}. No caso confirmado, o
+      login abria a janela pos-autenticacao em about:blank porque o captcha
+      carregava `securimage/securimage.php` e quebrava antes de renderizar.
+    causa_raiz: >
+      A sintaxe de offset por chaves para strings/arrays foi removida no PHP
+      8.0. Como o arquivo falha no parse, regras AST do Rector nao conseguem
+      atuar se o arquivo estiver nessa situacao.
+    deteccao:
+      tipo: regex
+      padrao: '\$[A-Za-z_][A-Za-z0-9_]*((->|::)[A-Za-z_][A-Za-z0-9_]*|\[[^\]\r\n]+\])*\{[^{}\r\n;]+\}'
+      observacao: >
+        Padrao pre-parse conservador para variaveis simples, propriedades de
+        objeto e offsets de array encadeados. Casos muito dinamicos devem ser
+        avaliados manualmente.
+    fix:
+      tipo: comando
+      comando: bin/edu-deps fix-regressions --rule=string-offset-com-chaves
+      descricao: >
+        CurlyStringOffsetFixer (regex pre-parse): transforma $str{$i} em
+        $str[$i], $arr['key']{$i} em $arr['key'][$i] e $obj->prop{$i} em
+        $obj->prop[$i], preservando a expressao do indice.
+    prevencao: >
+      Rodar a regra em bibliotecas compartilhadas antes da validacao funcional,
+      especialmente arquivos de bootstrap/login/captcha que podem impedir o
+      acesso ao sistema inteiro.
+    volume_ecidade:
+      arquivos: 2
+      observacao: >
+        Casos confirmados em `securimage/securimage.php`, linha 1915, e
+        `securimage/WavFile.php`, linha 1555, durante login/captcha. A regra
+        deve ser usada para medir o volume total antes de um lote amplo.
+    commits: []
+
   - id: shim-sobrescreve-superglobal
     titulo: Shim invertido sobrescrevendo superglobais modernas (quebrou $_SESSION)
     origem: hotfix

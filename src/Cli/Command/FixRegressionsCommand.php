@@ -5,7 +5,10 @@ declare(strict_types=1);
 namespace EduDeps\Cli\Command;
 
 use EduDeps\Config\RegressionCatalog;
+use EduDeps\Fixer\CurlyStringOffsetFixer;
 use EduDeps\Fixer\OverrideOnPropertyFixer;
+use EduDeps\Fixer\ParseStrFixer;
+use EduDeps\Fixer\PgResultGuardFixer;
 use EduDeps\Fixer\Php4ConstructorFixer;
 use EduDeps\Fixer\ShortTagsFixer;
 use EduDeps\Resolver\PathResolver;
@@ -34,14 +37,18 @@ final class FixRegressionsCommand extends Command
      * Mapeamento regra do catalogo -> fixer implementado. Regras ausentes
      * aqui tem fix manual (a estrategia e descrita no proprio catalogo).
      *
+     * @param list<string>|null $include escopo de paths repassado a cada fixer
      * @return array<string, callable(): object>
      */
-    private function fixers(): array
+    private function fixers(?array $include): array
     {
         return [
-            'short-open-tags' => static fn (): object => new ShortTagsFixer(),
-            'php4-constructor' => static fn (): object => new Php4ConstructorFixer(),
-            'override-attribute-on-property' => static fn (): object => new OverrideOnPropertyFixer(),
+            'short-open-tags' => static fn (): object => new ShortTagsFixer(null, $include),
+            'php4-constructor' => static fn (): object => new Php4ConstructorFixer(null, $include),
+            'override-attribute-on-property' => static fn (): object => new OverrideOnPropertyFixer(null, $include),
+            'parse-str-sem-segundo-arg' => static fn (): object => new ParseStrFixer(null, $include),
+            'pg-result-false-typeerror' => static fn (): object => new PgResultGuardFixer(null, $include),
+            'string-offset-com-chaves' => static fn (): object => new CurlyStringOffsetFixer(null, $include),
         ];
     }
 
@@ -51,6 +58,7 @@ final class FixRegressionsCommand extends Command
             ->setDescription('Aplica em batch os fixes automatizados do catalogo de regressoes.')
             ->addOption('project-root', null, InputOption::VALUE_REQUIRED, 'Raiz do projeto PHP legado')
             ->addOption('rule', null, InputOption::VALUE_REQUIRED, 'Aplica apenas a regra informada (id)')
+            ->addOption('include', null, InputOption::VALUE_REQUIRED, 'Escopo: lista de substrings de path separadas por virgula; so processa arquivos que casem (ex: /func_aluno,/edu)')
             ->addOption('catalog', null, InputOption::VALUE_REQUIRED, 'Caminho do regressions.yaml', null)
             ->addOption('dry-run', null, InputOption::VALUE_NONE, 'So reporta, nao modifica disco')
             ->addOption('list', null, InputOption::VALUE_NONE, 'Lista as regras do catalogo e status de automacao');
@@ -62,7 +70,13 @@ final class FixRegressionsCommand extends Command
 
         $catalogPath = $input->getOption('catalog') ?? dirname(__DIR__, 3) . '/config/regressions.yaml';
         $catalog = RegressionCatalog::fromFile((string) $catalogPath);
-        $fixers = $this->fixers();
+
+        $includeOption = $input->getOption('include');
+        $include = null;
+        if ($includeOption !== null) {
+            $include = array_values(array_filter(array_map('trim', explode(',', (string) $includeOption)), static fn (string $s): bool => $s !== ''));
+        }
+        $fixers = $this->fixers($include);
 
         if ($input->getOption('list')) {
             $io->title('Catalogo de regressoes');
@@ -99,6 +113,9 @@ final class FixRegressionsCommand extends Command
 
         $io->title('edu-deps fix-regressions' . ($dryRun ? ' (dry-run)' : ''));
         $io->writeln(sprintf('Project root: <info>%s</info>', $projectRoot));
+        if ($include !== null) {
+            $io->writeln(sprintf('Escopo (--include): <info>%s</info>', implode(', ', $include)));
+        }
 
         $summaryRows = [];
         $manualRules = [];

@@ -26,7 +26,7 @@ final class Php4ConstructorFixer extends AbstractAstFixer
         return stripos($source, 'class ') !== false;
     }
 
-    protected function mutate(array $newAst): int
+    protected function mutate(array &$newAst): int
     {
         $renamed = 0;
 

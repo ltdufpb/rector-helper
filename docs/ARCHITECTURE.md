@@ -2,12 +2,12 @@
 
 ## Visao em uma frase
 
-`edu-deps` e um analisador estatico de dependencias para arquivos PHP procedurais sem autoload PSR-4. Ele parte de "seeds" (arquivos `edu*.php` na raiz do e-cidade), percorre transitivamente todas as referencias estaticas (includes, `modification()`, `new cl_*`, `use Namespace`, chamadas estaticas) e produz a lista ordenada topologicamente que o Rector pode consumir como `withPaths()`.
+`edu-deps` e um analisador estatico de dependencias para arquivos PHP procedurais sem autoload PSR-4. Ele parte de "seeds" do recorte de Educacao (por padrao `edu*.php`, `mer*.php`, `func_mer_*.php` e entradas diretas ja catalogadas), pode somar seeds do mapa de menus (`MAPA_GERAL_ECIDADE.html`) e percorre transitivamente todas as referencias estaticas (includes, `modification()`, `new cl_*`, `use Namespace`, chamadas estaticas). O resultado e a lista ordenada topologicamente que o Rector pode consumir como `withPaths()`.
 
 ## Diagrama de fluxo
 
 ```
-seeds (edu*.php)
+seeds (globs padrao + entradas do mapa de menus filtradas por area/modulo/grupo)
       |
       v
 +---------------------+
@@ -87,14 +87,19 @@ sem dependentes saem por ultimo.
 
 ## Limitacoes conhecidas
 
-1. **Includes dinamicos** (`include $var`): impossivel de resolver
+1. **Entradas abertas diretamente pelo menu**: arquivos que nao sao incluidos
+   por outro PHP (ex.: telas `mat*` usadas por Alimentacao Escolar) precisam aparecer como seed.
+   Mitigacao: `scan --seeds-glob` aceita multiplos globs separados por virgula e `scan --menu-map`
+   le o `MAPA_GERAL_ECIDADE.html` para adicionar automaticamente arquivos de menu filtrados por
+   area, modulo e caminho de menu.
+2. **Includes dinamicos** (`include $var`): impossivel de resolver
    estaticamente. Mitigado por `overrides.yaml` (lista manual).
-2. **Reflexao/`call_user_func` por string**: igualmente impossivel.
-3. **Heranca multi-arquivo sem namespace**: classes que estendem outras sem
+3. **Reflexao/`call_user_func` por string**: igualmente impossivel.
+4. **Heranca multi-arquivo sem namespace**: classes que estendem outras sem
    carregar explicitamente o pai geram falsos negativos. ClassMap mitiga ao
    indexar todas as declaracoes, mas a `extends`/`implements` ainda nao e
    percorrida (TODO em fase futura).
-4. **Geradores de codigo em build-time**: nao temos como saber. Documentado.
+5. **Geradores de codigo em build-time**: nao temos como saber. Documentado.
 
 ## Estrutura de arquivos
 
