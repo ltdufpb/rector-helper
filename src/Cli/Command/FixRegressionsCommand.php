@@ -7,6 +7,7 @@ namespace EduDeps\Cli\Command;
 use EduDeps\Config\RegressionCatalog;
 use EduDeps\Fixer\OverrideOnPropertyFixer;
 use EduDeps\Fixer\ParseStrFixer;
+use EduDeps\Fixer\PgResultGuardFixer;
 use EduDeps\Fixer\Php4ConstructorFixer;
 use EduDeps\Fixer\ShortTagsFixer;
 use EduDeps\Resolver\PathResolver;
@@ -45,6 +46,7 @@ final class FixRegressionsCommand extends Command
             'php4-constructor' => static fn (): object => new Php4ConstructorFixer(null, $include),
             'override-attribute-on-property' => static fn (): object => new OverrideOnPropertyFixer(null, $include),
             'parse-str-sem-segundo-arg' => static fn (): object => new ParseStrFixer(null, $include),
+            'pg-result-false-typeerror' => static fn (): object => new PgResultGuardFixer(null, $include),
         ];
     }
 

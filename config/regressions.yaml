@@ -250,6 +250,41 @@ regressions:
         $_SERVER["QUERY_STRING"], base64_decode(...).
     commits: []
 
+  - id: pg-result-false-typeerror
+    titulo: Funcoes pg_num* chamadas com resultado false/null
+    origem: php8
+    sintoma: >
+      TypeError: pg_numrows()/pg_num_rows()/pg_numfields()/pg_num_fields()
+      exige PgSql\Result, mas db_query() pode retornar false em consultas
+      dinamicas; o operador @ nao suprime TypeError no PHP 8.
+    causa_raiz: >
+      No PHP legado, @pg_numrows(false) ficava como warning suprimido e o fluxo
+      continuava. Em PHP 8+, a extensao pgsql usa tipos estritos e rejeita
+      false/null antes de retornar contagem. Telas genericas de iframe/listagem
+      montam SQL dinamico e podem receber false de db_query().
+    deteccao:
+      tipo: ast
+      padrao: atribuicoes diretas com pg_numrows/pg_num_rows/pg_numfields/pg_num_fields sobre variavel sem guard false/null
+    fix:
+      tipo: comando
+      comando: bin/edu-deps fix-regressions --rule=pg-result-false-typeerror
+      descricao: >
+        PgResultGuardFixer (AST): transforma atribuicoes diretas como
+        $numrows = @pg_numrows($result); em
+        $numrows = ($result === false || $result === null) ? 0 : @pg_numrows($result);
+        preservando a chamada original no caminho valido.
+    prevencao: >
+      Rodar a regra nos arquivos compartilhados do escopo Educacao/dbforms/libs
+      depois de cada falha de runtime envolvendo PgSql\Result false, e validar
+      funcionalmente a tela que revelou a query invalida.
+    volume_ecidade:
+      arquivos: 1
+      observacao: >
+        Confirmado em dbforms/db_classes_iframe_alterar_excluir.php na tela
+        Informacoes dos alunos > registro. Padrao provavelmente recorrente em
+        helpers dbforms/libs; aplicar com escopo controlado.
+    commits: []
+
   - id: shim-sobrescreve-superglobal
     titulo: Shim invertido sobrescrevendo superglobais modernas (quebrou $_SESSION)
     origem: hotfix

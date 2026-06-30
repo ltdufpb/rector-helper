@@ -11,11 +11,11 @@ final class RegressionCatalogTest extends TestCase
 {
     private const CATALOG = __DIR__ . '/../../config/regressions.yaml';
 
-    public function test_loads_catalog_with_eight_regressions(): void
+    public function test_loads_catalog_with_nine_regressions(): void
     {
         $catalog = RegressionCatalog::fromFile(self::CATALOG);
 
-        $this->assertSame(8, $catalog->count());
+        $this->assertSame(9, $catalog->count());
     }
 
     public function test_every_entry_has_complete_schema(): void
