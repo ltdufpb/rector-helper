@@ -206,13 +206,47 @@ regressions:
       consolidar no catalogo em vez de regex ad-hoc: o passe anterior corrigiu
       ~479 arquivos com um regex Perl fora da ferramenta que so casava
       parse_str($var) em edu*/mer* — deixou 83 arquivos de Educacao quebrados
-      (descobertos so em runtime).
+      (descobertos so em runtime). A retomada em Alimentacao Escolar mostrou
+      tambem que telas abertas diretamente pelo menu podem ficar fora do grafo
+      quando os seeds cobrem apenas edu*.php; por isso o scan passou a aceitar
+      multiplos globs e o recorte padrao inclui edu*.php, mer*.php,
+      func_atendrequi.php e func_mer_*.php. A validacao dos procedimentos de
+      Alimentacao Escolar revelou o mesmo padrao em transferencia entre
+      depositos, acionada por func_matestoquetransf*.php; esse recorte
+      especifico tambem passou a compor o seed padrao sem abrir todo o modulo
+      de Materiais. A continuacao da validacao mostrou que a alteracao da
+      transferencia e a solicitacao de transferencia tambem passam por
+      func_matestoqueini*.php, mat4_matpedido002.php, mat4_matpedido003.php e
+      mat1_matpedidoitem001.php, adicionados como seeds explicitos do mesmo
+      fluxo. O reteste de Solicitacao de transferencia revelou ainda o iframe
+      auxiliar func_matpedido*.php, incluido como seed da mesma trilha. A tela
+      Requisicao de saida de materiais revelou `mat1_matrequi*.php` como outra
+      entrada direta de menu do grupo Procedimentos; ela tambem passou a compor
+      o recorte padrao. A tela Entrada manual de estoque revelou
+      `mat1_matestoqueini*.php` no cancelamento, tambem tratado como entrada
+      direta do mesmo grupo. A preparacao do submodulo Biblioteca com seeds do
+      mapa de menus revelou 31 arquivos `bib*` com o mesmo padrao. A preparacao
+      dos submodulos Escola e Secretaria Educacao revelou mais 4 ocorrencias em
+      `esc1_tipoausencia*` e `sec1_termoresultadofinal*`. A preparacao de
+      Transporte Escolar revelou 26 ocorrencias em arquivos `tra*`/`tre*`
+      alcancados pelo mapa de menus.
     volume_ecidade:
-      arquivos: 83
+      arquivos: 208
       observacao: >
         83 no escopo Educacao (ex: func_aluno*, func_turma*, func_diario*,
-        func_escola*, func_censo*, func_matricul*, func_matrequi*); milhares no
-        projeto inteiro. Variantes: $HTTP_SERVER_VARS["QUERY_STRING"] (via shim),
+        func_escola*, func_censo*, func_matricul*, func_matrequi*) + 1 em
+        Alimentacao Escolar/Procedimentos (func_atendrequi.php) + 41 em
+        Alimentacao Escolar/Cadastros (func_mer_*) + 2 em Transferencia entre
+        depositos (func_matestoquetransf*) + 8 em estoque/pedido de
+        transferencia (func_matestoqueini*, mat4_matpedido002/003.php,
+        mat1_matpedidoitem001.php) + 5 em iframes de pedido
+        (func_matpedido*) + 4 em requisicao de saida de materiais
+        (mat1_matrequi*) + 3 em entrada manual de estoque
+        (mat1_matestoqueini*) + 31 em Biblioteca (`bib*`) + 4 em
+        Escola/Secretaria (`esc1_tipoausencia*`,
+        `sec1_termoresultadofinal*`) + 26 em Transporte Escolar (`tra*`/`tre*`);
+        milhares no projeto inteiro. Variantes:
+        $HTTP_SERVER_VARS["QUERY_STRING"] (via shim),
         $_SERVER["QUERY_STRING"], base64_decode(...).
     commits: []
 
