@@ -26,10 +26,16 @@ use RecursiveIteratorIterator;
  * (Regressao #4): o Rector NAO converte `<?` para `<?php` — short tag e
  * problema PRE-parse, fora do escopo de regras Rector. Por isso a edu-deps
  * precisa cobrir.
+ *
+ * O lookahead de `php` e case-insensitive por caractere: `<?PHP` e tag de
+ * abertura VALIDA (o tokenizer do PHP nao diferencia caixa) e nao pode ser
+ * reescrita — a versao case-sensitive gerou `<?php PHP` (erro de parse) em
+ * 4 arquivos reais do e-cidade. `xml` fica minusculo de proposito: a
+ * declaracao XML e minuscula por especificacao.
  */
 final class ShortTagsFixer
 {
-    private const PATTERN = '/<\?(?!php|=|xml)/';
+    private const PATTERN = '/<\?(?![pP][hH][pP]|=|xml)/';
     private const REPLACEMENT = '<?php ';
 
     /** @var list<string> substrings de path; arquivo cujo path contem qualquer uma e pulado */

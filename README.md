@@ -100,7 +100,7 @@ vendor/bin/rector process --dry-run --config=out/rector-generated.php
 bin/edu-deps fix-short-tags --project-root /caminho/do/projeto --dry-run
 ```
 
-Usa PCRE com lookahead (`/<\?(?!php|=|xml)/`), preservando `<?xml`, `<?=` e `<?php`. Idempotente. Existe porque short open tags são um problema **pré-parse** — verificado: nenhuma das 141 regras oficiais do Rector cobre isso.
+Usa PCRE com lookahead (`/<\?(?![pP][hH][pP]|=|xml)/`), preservando `<?xml`, `<?=` e `<?php` em qualquer caixa (`<?PHP` é tag válida — o tokenizer do PHP não diferencia maiúsculas). Idempotente. Existe porque short open tags são um problema **pré-parse** — verificado: nenhuma das 141 regras oficiais do Rector cobre isso.
 
 | Opção | Default | Descrição |
 |---|---|---|

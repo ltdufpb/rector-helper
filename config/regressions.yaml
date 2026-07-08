@@ -109,11 +109,15 @@ regressions:
       trecho como PHP).
     deteccao:
       tipo: regex
-      padrao: '<\?(?!php|=|xml)'
+      padrao: '<\?(?![pP][hH][pP]|=|xml)'
       observacao: >
         PCRE com lookahead via PHP — NAO usar grep com bracket expression:
         [^pxe?=] falha em <? no fim de linha (exige caractere real) e
         grep -P exige locale UTF-8 (quebra em arquivos ISO-8859-1).
+        O lookahead de php PRECISA ser case-insensitive: <?PHP e tag valida
+        (tokenizer do PHP ignora caixa) — a versao case-sensitive reescreveu
+        <?PHP como <?php PHP em 4 arquivos do e-cidade (parse error fatal,
+        corrigido no commit PHP8-22). xml fica minusculo (especificacao XML).
     fix:
       tipo: comando
       comando: bin/edu-deps fix-short-tags
