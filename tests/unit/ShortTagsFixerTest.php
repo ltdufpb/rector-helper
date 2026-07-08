@@ -99,6 +99,23 @@ final class ShortTagsFixerTest extends TestCase
         );
     }
 
+    public function test_does_not_touch_uppercase_php_open_tag(): void
+    {
+        // <?PHP e tag de abertura valida (tokenizer case-insensitive);
+        // reescrever geraria `<?php PHP` = parse error fatal.
+        $fixer = new ShortTagsFixer();
+        $upperPath = $this->workDir . '/uppercase_php_tag.php';
+        $originalContent = file_get_contents($upperPath);
+
+        $fixer->fix($this->workDir, false);
+
+        $this->assertSame(
+            $originalContent,
+            file_get_contents($upperPath),
+            'tag <?PHP (caixa alta, valida) nao deve ser reescrita'
+        );
+    }
+
     public function test_does_not_touch_xml_declaration(): void
     {
         $fixer = new ShortTagsFixer();
