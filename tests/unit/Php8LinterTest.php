@@ -65,6 +65,28 @@ final class Php8LinterTest extends TestCase
         $this->assertSame(['short-open-tags'], array_keys($report['rules']));
     }
 
+    public function test_detects_fffd_encoding_corruption(): void
+    {
+        // Arquivo corrompido: acentos ISO viraram U+FFFD (bytes EF BF BD).
+        file_put_contents(
+            $this->tmpDir . '/corrompido.php',
+            "<?php\necho \"DBSeller Inform\xEF\xBF\xBDtica\";\n// fun\xEF\xBF\xBD\xEF\xBF\xBDes\n"
+        );
+        // Arquivo ISO-8859-1 saudavel: acento como byte unico 0xE7 — nao dispara.
+        file_put_contents(
+            $this->tmpDir . '/iso_saudavel.php',
+            "<?php\necho \"fun\xE7\xE3o\";\n"
+        );
+
+        $catalog = RegressionCatalog::fromFile(self::CATALOG);
+        $report = (new Php8Linter($catalog))->lint($this->tmpDir, 'encoding-fffd');
+
+        $rule = $report['rules']['encoding-fffd'];
+        $this->assertSame(1, $rule['files']);
+        $this->assertSame(3, $rule['occurrences']);
+        $this->assertStringEndsWith('corrompido.php', $rule['samples'][0]);
+    }
+
     public function test_detects_inverted_shim_pattern(): void
     {
         // Padrao da regressao #7 (hotfix9): superglobal moderna sobrescrita.

@@ -348,3 +348,48 @@ regressions:
       arquivos: 1
       observacao: efeito sistemico — derrubava a sessao de todo o sistema
     commits: [5a632fc35]
+
+  - id: encoding-fffd
+    titulo: Acentos ISO-8859-1 destruidos por editor UTF-8 (U+FFFD)
+    origem: hotfix
+    sintoma: >
+      Textos com "�" (ou "ï¿½" quando renderizado como ISO) em telas, botoes e
+      mensagens — ex: "MANHï¿½" na tela de Turnos. Em casos graves quebra
+      logica: classes de regex de acentos (retiraacentos) param de casar as
+      letras acentuadas.
+    causa_raiz: >
+      Arquivos do projeto sao ISO-8859-1. Ferramenta de edicao (agente de IA,
+      editor sem encoding configurado) le o arquivo assumindo UTF-8: cada
+      sequencia de bytes acentuados invalida vira U+FFFD (EF BF BD) e o save
+      regrava o arquivo inteiro sem NENHUM acento original. Perda irreversivel
+      sem a versao anterior no git — bytes ISO adjacentes podem colapsar em um
+      unico U+FFFD (a contagem nao e 1:1), impossibilitando reconstrucao cega.
+    deteccao:
+      tipo: regex
+      padrao: '\xEF\xBF\xBD'
+      observacao: >
+        casa a sequencia de bytes do U+FFFD; NAO usar flag /u nem grep -P em
+        locale UTF-8 (em locale UTF-8 o \xEF vira o codepoint U+00EF e o
+        padrao passa a casar o texto mojibake "ï¿½" em vez dos bytes).
+        Arquivo ISO-8859-1 saudavel (bytes 0x80-0xFF) NAO dispara a regra.
+    fix:
+      tipo: manual
+      descricao: >
+        restaurar da versao anterior no git alinhando linha a linha (linha cuja
+        unica diferenca e acento->U+FFFD volta aos bytes originais; linha com
+        mudanca funcional mantem a mudanca e recebe os acentos da versao base).
+        Nao ha correcao automatica possivel sem a referencia historica.
+    prevencao: >
+      nunca editar arquivo ISO-8859-1 com ferramenta que decodifica UTF-8;
+      rodar lint-php8 (esta regra) antes de cada commit — no e-cidade a
+      corrupcao passou despercebida por 8 commits porque o php -l continua
+      passando (o dano e textual, nao sintatico).
+    volume_ecidade:
+      arquivos: 7
+      observacao: >
+        7 arquivos corrompidos pelos commits manuais PHP8-1..PHP8-8 (378
+        linhas; libs/db_stdlib.php sozinho com 274, incluindo as classes de
+        acentos da funcao retiraacentos — dano funcional). Outros 40 arquivos
+        ja vinham corrompidos do repositorio upstream da DBSeller e ficam
+        fora do escopo (linha de base registrada na auditoria de 07/07/2026).
+    commits: []

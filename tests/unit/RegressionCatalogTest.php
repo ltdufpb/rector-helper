@@ -11,11 +11,11 @@ final class RegressionCatalogTest extends TestCase
 {
     private const CATALOG = __DIR__ . '/../../config/regressions.yaml';
 
-    public function test_loads_catalog_with_ten_regressions(): void
+    public function test_loads_catalog_with_eleven_regressions(): void
     {
         $catalog = RegressionCatalog::fromFile(self::CATALOG);
 
-        $this->assertSame(10, $catalog->count());
+        $this->assertSame(11, $catalog->count());
     }
 
     public function test_every_entry_has_complete_schema(): void
@@ -73,6 +73,19 @@ final class RegressionCatalogTest extends TestCase
         $this->assertSame(0, preg_match($pattern, '<?php echo $x;'));
         $this->assertSame(0, preg_match($pattern, '<?= $x ?>'));
         $this->assertSame(0, preg_match($pattern, '<?xml version="1.0"?>'));
+    }
+
+    public function test_encoding_fffd_pattern_matches_bytes_not_mojibake_text(): void
+    {
+        $catalog = RegressionCatalog::fromFile(self::CATALOG);
+        $pattern = '/' . $catalog->findById('encoding-fffd')['deteccao']['padrao'] . '/';
+
+        // Sequencia de bytes do U+FFFD (arquivo corrompido) — deve casar.
+        $this->assertSame(1, preg_match($pattern, "Inform\xEF\xBF\xBDtica"));
+        // Acento ISO-8859-1 saudavel (0xE1 = a-agudo) — NAO deve casar.
+        $this->assertSame(0, preg_match($pattern, "Inform\xE1tica"));
+        // Acento UTF-8 valido (arquivo ja convertido) — NAO deve casar.
+        $this->assertSame(0, preg_match($pattern, "Inform\xC3\xA1tica"));
     }
 
     public function test_rejects_yaml_with_missing_required_field(): void
